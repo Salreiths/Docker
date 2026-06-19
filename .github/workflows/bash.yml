@@ -1,0 +1,17 @@
+name: bash
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run checks
+        run: docker run -v ./bash:/opt/bash --rm tyvik/kubsu:master
