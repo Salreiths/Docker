@@ -1,0 +1,68 @@
+name: Build, Test and Deploy
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+env:
+  IMAGE_NAME: users-app
+  REMOTE_HOST: 212.192.134.135
+  REMOTE_PORT: 60080
+  REMOTE_USER: visvesvaraya@kubsu.tyvik.ru
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Build Docker image
+      run: |
+        docker build -t ${{ env.IMAGE_NAME }}:latest .
+    
+    - name: Run tests
+      run: |
+        docker run --rm ${{ env.IMAGE_NAME }}:latest pytest tests/ -v
+    
+    - name: Save image
+      run: |
+        docker save ${{ env.IMAGE_NAME }}:latest | gzip > ${{ env.IMAGE_NAME }}.tar.gz
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: docker-image
+        path: ${{ env.IMAGE_NAME }}.tar.gz
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: docker-image
+    
+    - name: Setup SSH
+      uses: webfactory/ssh-agent@v0.7.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+    
+    - name: Deploy to server
+      run: |
+        scp -P ${{ env.REMOTE_PORT }} ${{ env.IMAGE_NAME }}.tar.gz ${{ env.REMOTE_USER }}@${{ env.REMOTE_HOST }}:/tmp/
+        ssh -p ${{ env.REMOTE_PORT }} ${{ env.REMOTE_USER }}@${{ env.REMOTE_HOST }} "
+          podman load < /tmp/${{ env.IMAGE_NAME }}.tar.gz &&
+          podman stop users-container || true &&
+          podman rm users-container || true &&
+          podman run -d --name users-container -p 8118:8118 --restart=always ${{ env.IMAGE_NAME }}:latest &&
+          rm /tmp/${{ env.IMAGE_NAME }}.tar.gz
+        "
