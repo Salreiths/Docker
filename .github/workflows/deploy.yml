@@ -16,8 +16,25 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     
+    # --- ДОБАВЛЯЕМ СЕРВИС POSTGRESQL ДЛЯ ТЕСТОВ ---
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: kubsu
+          POSTGRES_PASSWORD: kubsu
+          POSTGRES_DB: kubsu
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U kubsu"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
     
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -27,9 +44,14 @@ jobs:
         # Указываем путь к Dockerfile в папке docker
         docker build -t ${{ env.IMAGE_NAME }}:latest -f docker/Dockerfile docker/
     
-    - name: Run tests
+    - name: Run tests in Docker container
       run: |
-        docker run --rm ${{ env.IMAGE_NAME }}:latest pytest tests/ -v
+        # Запускаем тесты внутри контейнера, но подключаемся к PostgreSQL на хосте
+        docker run --rm \
+          -e DATABASE_URL="postgresql+psycopg://kubsu:kubsu@host.docker.internal:5432/kubsu" \
+          --add-host host.docker.internal:host-gateway \
+          ${{ env.IMAGE_NAME }}:latest \
+          pytest tests/ -v
     
     - name: Save image
       run: |
