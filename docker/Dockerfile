@@ -7,14 +7,13 @@ COPY pyproject.toml ./
 
 # Устанавливаем все зависимости (включая pytest)
 RUN pip install --no-cache-dir \
-    fastapi==0.115.8 \
-    uvicorn==0.34.0 \
-    sqlalchemy==2.0.37 \
-    psycopg-binary==3.2.4 \
-    psycopg==3.2.4 \
-    pytest==7.4.0 \
-    pytest-asyncio==0.25.3 \
-    httpx==0.28.1
+    fastapi \
+    uvicorn \
+    sqlalchemy \
+    psycopg-binary \
+    pytest \
+    pytest-asyncio \
+    httpx
 
 # Копируем исходный код
 COPY src/ ./src/
