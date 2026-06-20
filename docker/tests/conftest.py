@@ -26,19 +26,29 @@ async def db(init_db) -> AsyncSession:
 
 @pytest_asyncio.fixture
 async def test_client(db) -> AsyncClient:
+    from src.database import get_db
+    
+    async def override_get_db():
+        try:
+            yield db
+        finally:
+            pass
+    
+    app.dependency_overrides[get_db] = override_get_db
+    
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
+    
+    app.dependency_overrides.clear()
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def clear_table(db: AsyncSession):
     try:
-        await db.execute(text("SELECT 1 FROM users LIMIT 1"))
-        await db.execute(text("TRUNCATE users RESTART IDENTITY CASCADE;"))
+        await db.execute(text("DELETE FROM users;"))
         await db.commit()
     except Exception:
         await db.rollback()
-        pass
 
 
 @pytest_asyncio.fixture
